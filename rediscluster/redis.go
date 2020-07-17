@@ -268,10 +268,7 @@ func (store *redisFeatureStoreCore) GetCacheTTL() time.Duration {
 
 func (store *redisFeatureStoreCore) GetInternal(kind ld.VersionedDataKind, key string) (ld.VersionedData, error) {
 	c := store.getConn()
-
-	fmt.Println()
-	fmt.Println("Calling GetInternal")
-	fmt.Println()
+	
 	jsonStr, err := c.HGet(store.featuresKey(kind), hashTagKey(key)).Result()
 	if err != nil {
 		if err == r.Nil {
@@ -292,9 +289,6 @@ func (store *redisFeatureStoreCore) GetAllInternal(kind ld.VersionedDataKind) (m
 	results := make(map[string]ld.VersionedData)
 
 	c := store.getConn()
-	fmt.Println()
-	fmt.Println("Getting all from GetAllInternal")
-	fmt.Println()
 	values, err := c.HGetAll(store.featuresKey(kind)).Result()
 	if err != nil && err != r.Nil {
 		return nil, err
@@ -314,8 +308,6 @@ func (store *redisFeatureStoreCore) GetAllInternal(kind ld.VersionedDataKind) (m
 // Init populates the store with a complete set of versioned data
 func (store *redisFeatureStoreCore) InitInternal(allData map[ld.VersionedDataKind]map[string]ld.VersionedData) error {
 	c := store.getConn()
-
-	//_ = c.Send("MULTI")
 	pipe := c.Pipeline()
 
 	for kind, items := range allData {
@@ -334,7 +326,6 @@ func (store *redisFeatureStoreCore) InitInternal(allData map[ld.VersionedDataKin
 	}
 
 	_ = pipe.Set(store.initedKey(), "", 0 )
-
 	_, err := pipe.Exec()
 
 	return err
@@ -370,35 +361,17 @@ func (store *redisFeatureStoreCore) UpsertInternal(kind ld.VersionedDataKind, ne
 			if jsonErr != nil {
 				return fmt.Errorf("failed to marshal %s key %s: %s", kind, key, jsonErr)
 			}
-			//fmt.Println()
-			//fmt.Println()
-			//fmt.Println("About to Sleep!!!!")
-			//fmt.Println()
-			//fmt.Println()
-			//time.Sleep(2 *time.Minute)
-			//fmt.Println()
-			//fmt.Println()
-			//fmt.Println("Waking up!!!!")
-			//fmt.Println()
-			//fmt.Println()
 
 			pipe := tx.Pipeline()
 			defer pipe.Close()
-			//_ = c.Send("MULTI")
-			//err = c.Send("HSET", baseKey, key, data)
+
 			err = pipe.HSet(baseKey, hashTagKey(key), data).Err()
 			if err == nil {
-				fmt.Println()
-				fmt.Println("HSET WORKED, ABOUT TO EXEC")
-				fmt.Println()
 				var result interface{}
 				//result, err = c.Do("EXEC")
 				result, err = pipe.Exec()
 				if err == nil {
 					if result == nil {
-						fmt.Println()
-						fmt.Println("Empty Result, meaning WATCH FAILED")
-						fmt.Println()
 						// if exec returned nothing, it means the watch was triggered and we should retry
 						store.loggers.Debug("Concurrent modification detected, retrying")
 						shouldContinueExecution = true
@@ -408,14 +381,8 @@ func (store *redisFeatureStoreCore) UpsertInternal(kind ld.VersionedDataKind, ne
 				item = newItem
 				return  nil
 			}
-
-			fmt.Println()
-			fmt.Println("Seems that HSET failed on Upsert")
-			fmt.Println()
-
 			return  err
 		}, baseKey )
-		//_, err := c.Do("WATCH", baseKey)
 		if err != nil {
 			return nil, err
 		}
@@ -423,12 +390,6 @@ func (store *redisFeatureStoreCore) UpsertInternal(kind ld.VersionedDataKind, ne
 		if !shouldContinueExecution {
 			return item, nil
 		}
-
-		//defer c.Send("UNWATCH") // nolint:errcheck // this should always succeed
-
-		//if store.testTxHook != nil { // instrumentation for unit tests
-		//	store.testTxHook()
-		//}
 	}
 }
 
